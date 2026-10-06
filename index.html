@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Experiments Card Sort</title>
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--ink:#1d2433;--mut:#667085;--line:#d5d9e3;
+--t:#dbeafe;--tb:#2563eb;--d:#dcfce7;--db:#16a34a;--e:#fef3c7;--eb:#d97706;--ok:#16a34a;--bad:#dc2626}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:12px 16px;background:#fff;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:0;z-index:5}
+h1{font-size:1.15rem;margin:0;flex:1 1 200px}
+button{font:inherit;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
+button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+#score{font-weight:600}
+details{margin:12px 16px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 14px}
+summary{cursor:pointer;font-weight:600}
+details p{font-size:.92rem;line-height:1.45}
+main{display:grid;grid-template-columns:minmax(300px,1fr) 2fr;gap:16px;padding:0 16px 90px}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+h2{font-size:1rem;margin:10px 0 6px}
+.pool{display:flex;flex-direction:column;gap:6px}
+.card{border:2px solid;border-radius:8px;padding:7px 9px;font-size:.88rem;line-height:1.3;cursor:pointer;user-select:none}
+.card.t{background:var(--t);border-color:var(--tb);font-weight:600}
+.card.d{background:var(--d);border-color:var(--db)}
+.card.e{background:var(--e);border-color:var(--eb)}
+.card.sel{outline:4px solid #111;outline-offset:1px}
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;align-content:start}
+.group{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px}
+.group h3{margin:0 0 6px;font-size:.8rem;color:var(--mut)}
+.slot{min-height:46px;border:2px dashed;border-radius:8px;margin-bottom:6px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:var(--mut);cursor:pointer}
+.slot.t{border-color:var(--tb)}.slot.d{border-color:var(--db)}.slot.e{border-color:var(--eb)}
+.slot.over{background:#eef}
+.slot .card{width:100%;margin:0}
+.slot.full{border-style:solid;border-color:transparent;padding:0}
+.slot.ok .card{box-shadow:0 0 0 3px var(--ok)}
+.slot.bad .card{box-shadow:0 0 0 3px var(--bad)}
+#bar{position:fixed;bottom:0;left:0;right:0;background:#111;color:#fff;padding:10px 16px;font-size:.9rem;display:none;gap:10px;align-items:center;z-index:9}
+#bar span{flex:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>Experiments Card Sort</h1>
+  <span id="score"></span>
+  <button class="primary" id="check">Check my groups</button>
+  <button id="reset">Start over</button>
+</header>
+
+<details>
+  <summary>Experiments Page (tap to open)</summary>
+  <p><b>Experiment A:</b> A personal fitness coach wants to see if weight training or cardio is more effective in contributing to weight loss. Ninety volunteers are randomly assigned using a random number generator to one of three programs: weight training, cardio training, no training. The weight training program and cardio training program each consist of 3 workouts per week, while the “no training” program consists of no workouts. Participants will do each program for 6 weeks, and then weight loss will be recorded.</p>
+  <p><b>Experiment B:</b> A web designer wants to test how user-friendly the new design is. He will have volunteers complete a set of tasks on either the old website or the new website, then record the time it takes to complete. A lower time indicates that the website is well designed and user friendly. He is concerned that age may have an impact on the times, since younger adults tend to be more technologically adept. Therefore, he plans to separate the volunteers by age first, and then randomly assign half of the age group to complete the tasks on the new webpage and the other half of the age group to complete the tasks on the old webpage. The volunteers will not be told which web page is the “new” or “old” design. The responses will be compared within each age group.</p>
+  <p><b>Experiment C:</b> Artificial turf is a synthetic playing surface designed to resemble natural grass. An experiment will be implemented to analyze the mean difference in sprint time between running on grass versus artificial turf. One hundred volunteer football players will sprint 40 yards on both surfaces. Volunteers will all receive the same warm up and wear the same shoe brand. The surface they sprint on first will be randomly determined using a coin flip. The differences in their times (grass - artificial turf) will be recorded.</p>
+</details>
+
+<main>
+  <section>
+    <h2>Cards <small style="font-weight:400;color:#667085">— tap a card, then tap a matching empty slot (or drag it)</small></h2>
+    <div class="pool" id="pool"></div>
+  </section>
+  <section>
+    <h2>Your groups <small style="font-weight:400;color:#667085">— each needs 1 term, 1 definition, 1 example. Tap a placed card to remove it.</small></h2>
+    <div class="groups" id="groups"></div>
+  </section>
+</main>
+<div id="bar"><span id="barText"></span><button id="cancel">Cancel</button></div>
+
+<script>
+// Index i in each array belongs together (answer key: term i+1).
+const T=["Experimental Units","Explanatory Variable","Response Variable","Treatments","Confounding Variable","Comparison","Random Assignment","Replication","Control","Completely Randomized Design","Single Blind","Double Blind","Control Group","Randomized Block Design","Matched Pairs"];
+const D=[
+"The individuals (which may be people or other objects of study) that are assigned treatments",
+"A variable whose levels are manipulated intentionally",
+"An outcome from the experimental units that is measured after the treatments have been administered",
+"The levels or combination of levels of the explanatory variable",
+"A variable that is related to the explanatory variable and influences the response variable",
+"An experiment having at least two treatments, one of which could be a control group",
+"The use of a random process to determine which experimental unit will receive which treatment",
+"Having more than one experimental unit in each treatment group",
+"An attempt to keep all confounding variables equal amongst experimental units",
+"In this type of experimental design, treatments are assigned to experimental units completely at random",
+"Subjects do not know which treatment they are receiving, but researchers do.",
+"Neither the subjects nor the members of the research team know which treatment a subject is receiving",
+"A collection of experimental units either not given a treatment of interest or given an inactive substance in order to determine if the treatment of interest has an effect",
+"In this experimental design, experimental units are divided into groups prior to random assignment. These groups are similar in a way that might affect the response variable",
+"Subjects are arranged in pairs matched on relevant factors and every pair is randomly assigned a treatment for each. Alternatively, each subject may get both treatments, in a random order."];
+const E=[
+"In <b>Experiment C</b>,<br>100 volunteer football players",
+"In <b>Experiment B</b>,<br>Type of Website Design",
+"In <b>Experiment C</b>,<br>Differences in sprint times (grass - turf)",
+"In <b>Experiment C</b>,<br>1.) Grass and then turf<br>2.) Turf and then grass",
+"In <b>Experiment A</b>,<br>Diet, Sleep Habits, Hormone Levels, etc",
+"In <b>Experiment B</b>,<br>This principle of experiment design is achieved since there are two treatments, new and old design",
+"In <b>Experiment A</b>,<br>This principle of experiment design is achieved since a random number generator was used to determine which treatment each subject did",
+"In <b>Experiment A</b>,<br>This principle of experiment design is achieved since each treatment group had 30 volunteers",
+"In <b>Experiment C</b>,<br>This principle of experiment design is achieved since warm up and shoe brand was consistent for each athlete",
+"This is the experimental design for <b>Experiment A</b>.",
+"<b>Experiment B</b> is considered to be ____________ since volunteers don’t know which web page design they are navigating",
+"None of these experiments are ____________ since in all of them, the researchers are aware of which treatment the subjects received.",
+"In <b>Experiment A</b>,<br>The group of volunteers who did not train are considered to be the ________________.",
+"This is the experimental design for <b>Experiment B</b>.",
+"This is the experimental design for <b>Experiment C</b>."];
+const TXT={t:T,d:D,e:E}, LABEL={t:"Term",d:"Definition",e:"Example"};
+const N=T.length;
+let placed, sel, order, checked;
+
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function init(){
+  placed=Array.from({length:N},()=>({t:null,d:null,e:null}));
+  sel=null;checked=false;
+  order={t:shuffle([...Array(N).keys()]),d:shuffle([...Array(N).keys()]),e:shuffle([...Array(N).keys()])};
+  render();
+}
+const isPlaced=(type,i)=>placed.some(g=>g[type]===i);
+function cardEl(type,i){
+  const c=document.createElement("div");
+  c.className="card "+type+((sel&&sel.type===type&&sel.i===i)?" sel":"");
+  c.innerHTML=TXT[type][i];c.draggable=true;
+  c.addEventListener("dragstart",ev=>{ev.dataTransfer.setData("text/plain",type+":"+i)});
+  return c;
+}
+function place(g,type,i){
+  if(placed[g][type]!==null)return;
+  placed.forEach(p=>{if(p[type]===i)p[type]=null});
+  placed[g][type]=i;sel=null;checked=false;render();
+}
+function render(){
+  const pool=document.getElementById("pool");pool.innerHTML="";
+  ["t","d","e"].forEach(type=>{
+    const h=document.createElement("div");h.style.cssText="font-size:.75rem;font-weight:700;color:#667085;margin-top:8px";
+    h.textContent=LABEL[type].toUpperCase()+"S";pool.appendChild(h);
+    order[type].filter(i=>!isPlaced(type,i)).forEach(i=>{
+      const c=cardEl(type,i);
+      c.onclick=()=>{sel=(sel&&sel.type===type&&sel.i===i)?null:{type,i};render()};
+      pool.appendChild(c);
+    });
+  });
+  const gr=document.getElementById("groups");gr.innerHTML="";
+  placed.forEach((p,g)=>{
+    const box=document.createElement("div");box.className="group";
+    box.innerHTML="<h3>Group "+(g+1)+"</h3>";
+    ["t","d","e"].forEach(type=>{
+      const s=document.createElement("div");s.className="slot "+type;
+      const v=p[type];
+      if(v===null){
+        s.textContent=LABEL[type];
+        s.onclick=()=>{if(sel&&sel.type===type)place(g,type,sel.i)};
+        s.ondragover=ev=>{ev.preventDefault();s.classList.add("over")};
+        s.ondragleave=()=>s.classList.remove("over");
+        s.ondrop=ev=>{ev.preventDefault();const [ty,ix]=ev.dataTransfer.getData("text/plain").split(":");if(ty===type)place(g,type,+ix)};
+      }else{
+        s.classList.add("full");
+        const c=cardEl(type,v);c.draggable=false;
+        c.onclick=()=>{p[type]=null;checked=false;render()};
+        s.appendChild(c);
+      }
+      box.appendChild(s);
+    });
+    // checked styling
+    if(checked){
+      const full=p.t!==null&&p.d!==null&&p.e!==null;
+      ["t","d","e"].forEach((type,k)=>{
+        const s=box.children[k+1];
+        if(p[type]===null)return;
+        const others=["t","d","e"].filter(x=>x!==type&&p[x]!==null).map(x=>p[x]);
+        // a card is right if every other placed card in the group shares its index
+        const ok=others.every(o=>o===p[type]);
+        s.classList.add(ok?"ok":"bad");
+      });
+    }
+    gr.appendChild(box);
+  });
+  const bar=document.getElementById("bar");
+  if(sel){bar.style.display="flex";document.getElementById("barText").innerHTML="Selected "+LABEL[sel.type].toLowerCase()+": "+TXT[sel.type][sel.i]}
+  else bar.style.display="none";
+  const score=document.getElementById("score");
+  if(checked){
+    const right=placed.filter(p=>p.t!==null&&p.d===p.t&&p.e===p.t).length;
+    score.textContent=right+" of "+N+" groups correct"+(right===N?" 🎉":"");
+  }else{
+    const done=placed.filter(p=>p.t!==null&&p.d!==null&&p.e!==null).length;
+    score.textContent=done+" of "+N+" groups built";
+  }
+}
+document.getElementById("check").onclick=()=>{checked=true;render()};
+document.getElementById("reset").onclick=()=>{if(confirm("Clear all groups and reshuffle?"))init()};
+document.getElementById("cancel").onclick=()=>{sel=null;render()};
+init();
+</script>
+</body>
+</html>
